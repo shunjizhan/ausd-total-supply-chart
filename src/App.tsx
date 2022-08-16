@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Plot from 'react-plotly.js';
 import { Button } from 'antd';
 import { FileTextOutlined, GithubOutlined } from '@ant-design/icons';
@@ -6,48 +6,96 @@ import { downloadFile } from './utils';
 
 import './App.scss';
 
-const START_BLOCK = 1646715;
-const END_BLOCK = 1647993;
+const ASTAR_START_BLOCK = 1638895;
+const MOONBEAM_START_BLOCK = 1646715;
+const ACALA_START_BLOCK = 1638215;
+const TOTAL_BLOCKS = 1279;
 
 const layout = {
-  xaxis: { range: [START_BLOCK, END_BLOCK], title: 'Block' },
+  xaxis: { range: [0, TOTAL_BLOCKS], title: 'Block Since { Moonbeam@1646715, Astar@1638515 }' },
   yaxis: { range: [500000000000000000], title: 'Total Supply' },
-  title: 'AUSD Total Supply on Moonbeam (1646715 on Moonbeam ≈ 1638215 on Acala)',
+  title: 'AUSD Total Supply on Moonbeam and Astar',
 };
 
 const App = () => {
-  const [totalSupply, setTotalSupply] = useState<[number, number][]>([]);
+  const [totalSupplyMoonbeam, setTotalSupplyMoonbeam] = useState<[number, number][]>([]);
+  const [totalSupplyAstar, setTotalSupplyAstar] = useState<[number, number][]>([]);
 
   useEffect(() => {
-    import('./totalSupply.json').then(data => {
-      const filteredData = data.default
-        .map(([block, supply]) => ([Number(block), Number(supply)]))
-        .filter(([block]) => START_BLOCK <= block && block <= END_BLOCK);
+    import('./totalSupplyMoonbeam.json').then(({ default: data }) => {
+      const normalizedData = data
+        .map(([block, supply]) => ([Number(block) - MOONBEAM_START_BLOCK, Number(supply)]));
 
-      setTotalSupply(filteredData as [number, number][]);
+      setTotalSupplyMoonbeam(normalizedData as [number, number][]);
+    });
+
+    import('./totalSupplyAstar.json').then(({ default: data }) => {
+      const normalizedData = data
+        .map(([block, supply]) => ([Number(block) - ASTAR_START_BLOCK, Number(supply)]));
+
+      setTotalSupplyAstar(normalizedData as [number, number][]);
     });
   }, []);
 
+  const dataLoaded = useMemo(() => (
+    !!totalSupplyMoonbeam.length && !!totalSupplyAstar.length
+  ), [totalSupplyMoonbeam, totalSupplyAstar]);
+
+  const totalSupplyAll = useMemo(() => (
+    !dataLoaded
+      ? []
+      : totalSupplyMoonbeam.map(([block, supply]) => (
+        [block, supply + totalSupplyAstar[block][1]]
+      ))
+  ), [totalSupplyMoonbeam, totalSupplyAstar]);
+
   const exportToJson = () => {
     downloadFile(
-      JSON.stringify(totalSupply),
-      'totalSupply.json',
+      JSON.stringify(totalSupplyMoonbeam),
+      'totalSupplyMoonbeam.json',
+      'text/json'
+    );
+
+    downloadFile(
+      JSON.stringify(totalSupplyAstar),
+      'totalSupplyAstar.json',
       'text/json'
     );
   };
 
+  // console.log(totalSupplyMoonbeam);
+  // console.log(totalSupplyAstar);
+  // console.log(totalSupplyAll);
+
   return (
     <div id='app'>
-      { !!totalSupply.length && (
+      { dataLoaded && (
         <>
           <Plot
             data={ [
               {
-                x: totalSupply.map(d => d[0]),
-                y: totalSupply.map(d => d[1]),
+                name: 'Moonbeam',
+                x: totalSupplyMoonbeam.map(d => d[0]),
+                y: totalSupplyMoonbeam.map(d => d[1]),
                 type: 'scatter',
                 mode: 'lines',
-                marker: { color: 'rgb(230, 0, 122)' },
+                line: { color: 'rgb(230, 0, 122)', width: 3 },
+              },
+              {
+                name: 'Astar',
+                x: totalSupplyAstar.map(d => d[0]),
+                y: totalSupplyAstar.map(d => d[1]),
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: 'rgb(0, 145, 255)', width: 3 },
+              },
+              {
+                name: 'Total',
+                x: totalSupplyAll.map(d => d[0]),
+                y: totalSupplyAll.map(d => d[1]),
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: 'rgb(52, 235, 186)', width: 3 },
               },
             ] }
             layout={ layout }
