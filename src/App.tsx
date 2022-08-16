@@ -100,7 +100,7 @@ const App = () => {
             ] }
             layout={ layout }
             style={{
-              marginTop: '100px',
+              marginTop: '30px',
               display: 'flex',
               height: '80vh',
               width: '80vw',
